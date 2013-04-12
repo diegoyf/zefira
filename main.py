@@ -102,7 +102,9 @@ class BenefitCoModule(tornado.web.UIModule):
             benefit = benefit,
             )
 
-class PublishHandler(tornado.web.RequestHandler):
+class PublishHandler(BaseHandler):
+    @tornado.web.authenticated
+    
     def get(self):
         self.render(
             "publish.html",
@@ -110,11 +112,22 @@ class PublishHandler(tornado.web.RequestHandler):
             header_text = "Publica"
             )
     def post(self):
+        import base64, uuid
         title = self.get_argument("title")
         text = self.get_argument("description")
         if title and text:
-            benefits  = self.application.db.benefits
-            benefits.insert({"title": title, "description": text})
+            from bson.dbref import DBRef
+            benefit = {
+                    "_id":base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes),
+                    "title": title, 
+                    "description": text,
+                    "company_name": self.current_user['info']['name']
+                   }
+            self.db.benefits.save(benefit)
+            self.current_user['benefits'].append(DBRef('benefits', benefit["_id"]))
+            self.db.companies.save(self.current_user)
+            
+            
             
         else: 
             self.set_status(404)
@@ -162,24 +175,36 @@ class EmpresasHandler(tornado.web.RequestHandler):
 class BoxHandler(BaseHandler):
     @tornado.web.authenticated
     
-    def get(self):  
-
-        interests = self.current_user['interests'] 
-        primary = []
-        search = []
+    def get(self): 
+        interests = self.current_user['interests']    
+        companies_followd = []
+        benefits_dref = []
         benefits = []
-        
+
+        if len(interests) == 0: benefits = None
+
         for i in interests:
-            primary.append(self.db.dereference(i))
-        for j in range(len(primary)):
-            for i in range(len(primary[j]['benefits'])):
-                search.append(primary[j]['benefits'][i])
-        for i in search:
+            companies_followd.append(self.db.dereference(i))
+        for j in range(len(companies_followd)):
+            for i in range(len(companies_followd[j]['benefits'])):
+                benefits_dref.append(companies_followd[j]['benefits'][i])
+        for i in benefits_dref:
             benefits.append(self.db.dereference(i))
-        self.session.data = {'benefits' : benefits, 'validated': []}
-        self.session.save()
-        
-        if len(benefits) == 0: benefits = None
+
+        reserves = self.current_user['reserves']
+        if len(reserves) == 0:
+            for i in benefits:
+                i['message'] = "Reservar" 
+        else:
+            reserves_dref = []
+            for i in range(len(reserves)):
+                reserves_dref.append(self.db.dereference(reserves[i]))
+
+            for i in benefits:
+                if i in reserves_dref:
+                    i['message'] = "Reservado"
+                else:
+                    i['message'] = "Reservar"       
         self.render(
                "box.html",
                page_title = "Zefira | Inicio",
@@ -189,13 +214,18 @@ class BoxHandler(BaseHandler):
                )
 
     def post(self):
+        benefit_id  = self.get_argument("benefit_id")
         from bson.dbref import DBRef
-            
-        benefit_id = self.get_argument("benefit_id")
-        user = self.db.users.find_one({"username": self.current_user['username']})
-        user['reserves'].append(DBRef('benefits', benefit_id))
-        self.db.users.save(user)
-        
+        dbref_obj = DBRef('benefits', benefit_id)
+        if dbref_obj in self.current_user['reserves']:
+            for i in range(len(self.current_user['reserves'])):
+                if self.current_user['reserves'][i] == dbref_obj:
+                    del self.current_user['reserves'][i]
+                    break
+        else:
+            self.current_user['reserves'].append(dbref_obj)
+        self.db.users.save(self.current_user)
+        self.redirect("/box")        
 class CBoxHandler(BaseHandler):
     @tornado.web.authenticated
 
@@ -217,10 +247,13 @@ class CBoxHandler(BaseHandler):
 class SignUpHandler(BaseHandler):
     
     def post(self):
+        import base64, uuid
         
+
         if self.get_argument("branch") == "companies":
             
             new_user = {
+                '_id':base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes),
                 'username': self.get_argument('username'),
                 'password': self.get_argument('password'),
                 'info' : {
@@ -238,6 +271,7 @@ class SignUpHandler(BaseHandler):
         
         else:
             user = {
+                '_id':base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes),
                 'username' : self.get_argument('username'),
                 'password': self.get_argument('password'),
                 'info':{'email': self.get_argument('email')},
@@ -260,15 +294,11 @@ class CompaniesHandler(BaseHandler):
         primary = []
         for i in user_companies:
             primary.append(self.db.dereference(i))
-        if primary != companies:
-            intro  = []
-            miss = []
-            for i in companies:
-                if i in primary:
-                    intro.append(i)
-                else: 
-                    miss.append(i)
-        
+        for i in companies:
+            if i in primary:
+                i['message'] = "Siguiendo"
+            else:
+                i['message'] = "Seguir"
         
         self.render(
             "copres.html",
@@ -279,14 +309,18 @@ class CompaniesHandler(BaseHandler):
             )
 
     def post(self):
-        from bson.dbref import DBRef
-            
         company_id = self.get_argument("company_id")
-        #self.session.data['interests'].append(benefit_id) 
-        user = self.db.users.find_one({"username": self.current_user['username']})
-        user['interests'].append(DBRef('companies', company_id))
-        self.db.users.save(user)
-        
+        from bson.dbref import DBRef
+        dbref_obj = DBRef('companies', company_id)
+        if dbref_obj in self.current_user['interests']:
+            for i in range(len(self.current_user['interests'])):
+                if self.current_user['interests'][i] == dbref_obj:
+                    del self.current_user['interests'][i]
+                    break
+        else:
+            self.current_user['interests'].append(dbref_obj)
+        self.db.users.save(self.current_user)
+        self.redirect("/companies")
         
 
 class CompaniesModule(tornado.web.UIModule):
