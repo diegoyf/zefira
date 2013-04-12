@@ -4,7 +4,7 @@
    <form action="" name="form" method="post" class="form">
   {% module xsrf_form_html() %}
   <input type="hidden" name="company_id" id="company_id" value= {{ company['_id'] }} />
-  <input type="submit" name="button" id="button" class="button" value="{{company['message']"/>
+  <input type="submit" name="button" id="button" class="button" value="{{company['message'] }}"/>
 	</form>
 
 </div>

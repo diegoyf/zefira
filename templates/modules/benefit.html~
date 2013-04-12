@@ -4,7 +4,7 @@
    <form action="" name="form" method="post" class="form">
   {% module xsrf_form_html() %}
   <input type="hidden" name="benefit_id" id="benefit_id" value= {{ benefit['_id'] }} />
-  <input type="submit" name="button" id="button" class="button" value="Validar"/>
+  <input type="submit" name="button" id="button" class="button" value="{{ benefit['message'] }}"/>
 	</form>
 
 </div>

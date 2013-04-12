@@ -106,28 +106,37 @@ class PublishHandler(BaseHandler):
     @tornado.web.authenticated
     
     def get(self):
+        
         self.render(
-            "publish.html",
-            page_title = " Zefira Publish Test",
-            header_text = "Publica"
+                "publish.html",
+                page_title = " Zefira Publish Test",
+                header_text = "Publica",
             )
+
+
+
     def post(self):
+
         import base64, uuid
         title = self.get_argument("title")
         text = self.get_argument("description")
         if title and text:
             from bson.dbref import DBRef
             benefit = {
-                    "_id":base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes),
+                    "_id":"bene"+base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes),
                     "title": title, 
                     "description": text,
                     "company_name": self.current_user['info']['name']
                    }
-            self.db.benefits.save(benefit)
-            self.current_user['benefits'].append(DBRef('benefits', benefit["_id"]))
-            self.db.companies.save(self.current_user)
-            
-            
+            from helpers import validation
+            if validation(benefit):
+                
+                self.db.benefits.save(benefit)
+                self.current_user['benefits'].append(DBRef('benefits', benefit["_id"]))
+                self.db.companies.save(self.current_user)
+            else: 
+                None
+                
             
         else: 
             self.set_status(404)
@@ -181,8 +190,14 @@ class BoxHandler(BaseHandler):
         benefits_dref = []
         benefits = []
 
-        if len(interests) == 0: benefits = None
-
+        if len(interests) == 0: 
+            benefits = None
+            self.render("box.html",
+                        page_title = "Zefira | Inicio",
+                        header_text = "Box",
+                        user = self.current_user['username'],
+                        benefits = benefits
+                        )
         for i in interests:
             companies_followd.append(self.db.dereference(i))
         for j in range(len(companies_followd)):
@@ -192,7 +207,7 @@ class BoxHandler(BaseHandler):
             benefits.append(self.db.dereference(i))
 
         reserves = self.current_user['reserves']
-        if len(reserves) == 0:
+        if len(reserves) == 0 :
             for i in benefits:
                 i['message'] = "Reservar" 
         else:
@@ -253,7 +268,7 @@ class SignUpHandler(BaseHandler):
         if self.get_argument("branch") == "companies":
             
             new_user = {
-                '_id':base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes),
+                '_id':"comp"+base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes),
                 'username': self.get_argument('username'),
                 'password': self.get_argument('password'),
                 'info' : {
@@ -271,7 +286,7 @@ class SignUpHandler(BaseHandler):
         
         else:
             user = {
-                '_id':base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes),
+                '_id':"user"+base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes),
                 'username' : self.get_argument('username'),
                 'password': self.get_argument('password'),
                 'info':{'email': self.get_argument('email')},

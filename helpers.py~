@@ -1,0 +1,42 @@
+import pymongo
+
+conn = pymongo.Connection("localhost",27017)
+db = conn.zefira
+
+def validation(d):
+    branch = d['_id'][:3]
+    if branch == 'bene':
+        benefits = []
+        for i in db.benefits.find():
+            benefits.append(i)
+        for i in benefits:
+            if d['name'] == i['name'] and d['title'] == i['title']:
+                return False
+            else:
+                return True
+    elif branch = "comp":
+        companies = []:
+        for i in db.companies.find():
+            companies.append(i)
+        for i in companies:
+            if d['username'] == i['username']:
+                return False
+            else:
+                return True
+
+    else:
+        users = []
+        for i in db.users.find():
+            users.append(i)
+
+        for i in users:
+            if d['username'] == i['username']:
+
+                return False
+            else: 
+                return True
+
+
+                
+    
+        
