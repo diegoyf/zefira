@@ -7,8 +7,10 @@ import tornado.options
 import os.path
 import datetime
 import pymongo
+import uimodules
 
 from tornado.options import define, options
+from data_manag import DataManagement
 
 define("port", default = 8000, help= "run on given port", type=int)
 
@@ -38,45 +40,35 @@ class Application(tornado.web.Application):
             template_path = os.path.join(os.path.dirname(__file__), "templates"),
             static_path = os.path.join(os.path.dirname(__file__),"static"),
             ui_modules={
-                "Benefit" : BenefitModule,
-                "BenefitCo": BenefitCoModule,
-                "Company" : CompaniesModule},            
+                "Benefit" : uimodules.BenefitModule,
+                "BenefitCo": uimodules.BenefitCoModule,
+                "Company" : uimodules.CompaniesModule},            
             debug = True,
             cookie_secret = "0azgrztWSuenSRWevq9GAOp/4bDtSET0q8YII0ZfLDc=",
             login_url = "/login",
             xsrf_cookies = True
         )
-        conn = pymongo.Connection("localhost", 27017)
-        self.db = conn["zefira"]
-  
+        
+        self.dataManager = DataManagement()
         tornado.web.Application.__init__(self, handlers, **settings)
 
 
-
 class BaseHandler(tornado.web.RequestHandler):
-    @property 
-    def db(self):
-        return self.application.db
+    @property
+    def data_manager(self):
+        return self.application.dataManager
 
     def get_current_user(self):
 
         user_id  = self.get_secure_cookie("username")
         password = self.get_secure_cookie("password")
         branch = self.get_secure_cookie("branch")
-        if not user_id and not password: return None
-        try:
-            if branch == "clientes":
-                user = self.db.users.find_one({"username": user_id})
-                self.session.data['branch'] = "clientes"
-            else:
-                user = self.db.companies.find_one({"username": user_id})
-                self.session.data['branch'] = "companies"
-        except:
-            self.set_status(404)
-            
-        if user['password'] == password:
+        
+        user = self.application.dataManager.fetch_user(user_id, password, branch)
+        if user:
             return user
-        else: self.set_status(404)
+        else:
+            self.set_status(404)
 
 class MainHandler(tornado.web.RequestHandler):
     
@@ -87,21 +79,6 @@ class MainHandler(tornado.web.RequestHandler):
             header_text = "Bienvenidos a Zefira",
             
             )
-
-class BenefitModule(tornado.web.UIModule):
-    def render(self, benefit):
-        return self.render_string(
-            "modules/benefit.html",
-            benefit=benefit,
-            )
-
-class BenefitCoModule(tornado.web.UIModule):
-    def render(self, benefit):
-        return self.render_string(
-            "modules/benefitco.html",
-            benefit = benefit,
-            )
-
 class PublishHandler(BaseHandler):
     @tornado.web.authenticated
     
@@ -111,35 +88,18 @@ class PublishHandler(BaseHandler):
                 "publish.html",
                 page_title = " Zefira Publish Test",
                 header_text = "Publica",
+                message = True,
             )
-
-
-
     def post(self):
 
         import base64, uuid
-        title = self.get_argument("title")
-        text = self.get_argument("description")
-        if title and text:
-            from bson.dbref import DBRef
-            benefit = {
-                    "_id":"bene"+base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes),
-                    "title": title, 
-                    "description": text,
-                    "company_name": self.current_user['info']['name']
-                   }
-            from helpers import validation
-            if validation(benefit):
-                
-                self.db.benefits.save(benefit)
-                self.current_user['benefits'].append(DBRef('benefits', benefit["_id"]))
-                self.db.companies.save(self.current_user)
-            else: 
-                None
-                
-            
-        else: 
-            self.set_status(404)
+        benefit = {
+            "_id":"bene"+base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes),
+            "title": self.get_argument("title"), 
+            "description":self.get_argument("description"),
+            "company_name": self.current_user['info']['name']
+                  }
+        self.data_manager.publish_benefit(benefit, self.current_user)
         self.redirect("/cbox")
 
 class LoginHandler(BaseHandler):
@@ -186,40 +146,9 @@ class BoxHandler(BaseHandler):
     
     def get(self): 
         interests = self.current_user['interests']    
-        companies_followd = []
-        benefits_dref = []
-        benefits = []
-
-        if len(interests) == 0: 
-            benefits = None
-            self.render("box.html",
-                        page_title = "Zefira | Inicio",
-                        header_text = "Box",
-                        user = self.current_user['username'],
-                        benefits = benefits
-                        )
-        for i in interests:
-            companies_followd.append(self.db.dereference(i))
-        for j in range(len(companies_followd)):
-            for i in range(len(companies_followd[j]['benefits'])):
-                benefits_dref.append(companies_followd[j]['benefits'][i])
-        for i in benefits_dref:
-            benefits.append(self.db.dereference(i))
-
-        reserves = self.current_user['reserves']
-        if len(reserves) == 0 :
-            for i in benefits:
-                i['message'] = "Reservar" 
-        else:
-            reserves_dref = []
-            for i in range(len(reserves)):
-                reserves_dref.append(self.db.dereference(reserves[i]))
-
-            for i in benefits:
-                if i in reserves_dref:
-                    i['message'] = "Reservado"
-                else:
-                    i['message'] = "Reservar"       
+        
+        benefits = self.data_manager.fetch_benefits_usr(interests, self.current_user)
+        
         self.render(
                "box.html",
                page_title = "Zefira | Inicio",
@@ -245,18 +174,15 @@ class CBoxHandler(BaseHandler):
     @tornado.web.authenticated
 
     def get(self):
-        benefits = self.current_user['benefits']
-        search = []
-        for i in range(len(benefits)):
-            search.append(self.db.dereference(benefits[i]))
-        if len(search) == 0: search = None                 
+        benefits_published = self.current_user['benefits']
+        
+        benefits_deref = self.data_manager.fetch_benefits_cmp(benefits_published)
         self.render(
-
             "cbox.html",
             page_title= "Zefira | Companies Box",
             header_text = "Companies Box",
             user = self.current_user['username'],
-            benefits = search
+            benefits = benefits_deref
             )
         
 class SignUpHandler(BaseHandler):
@@ -338,13 +264,7 @@ class CompaniesHandler(BaseHandler):
         self.redirect("/companies")
         
 
-class CompaniesModule(tornado.web.UIModule):
-    def render(self, company):
-        return self.render_string(
-            "modules/company.html",
-            company = company,
-            )
-                    
+                 
 def main():
     tornado.options.parse_command_line()
     server = tornado.httpserver.HTTPServer(Application())

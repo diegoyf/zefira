@@ -8,5 +8,7 @@
   </br>
   <textarea name="description" rows="30" cols="40"> </textarea> </br>
   <input type="submit" value="Publish" />
-  
+ {% if not message %}
+<p> Ha intentado publicar un beneficio con alguna falla, posiblemente ya existe. Intentelo de nuevo o <a href="/cbox">regrese.</a>
+{% end %}
 {% end %}
