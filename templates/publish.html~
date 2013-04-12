@@ -1,0 +1,11 @@
+{% extends "main.html" %}
+
+{% block body %}
+
+<form action="{{ request.path }}" method="post" >
+  {% raw xsrf_form_html()}
+  <input name="title" type="text" class="title" value"" />
+  </br>
+  <textarea name="description" rows="30" cols="40"> </textarea> </br>
+  <input type="submit" value="Publish" />
+{% end %}

@@ -1,0 +1,12 @@
+{% extends "main.html" %}
+
+{% block header %}
+ <h2> {{ header_text }} </h2>
+{% end %}
+
+{% block body %}
+  <p> Si eres empresa: <a href="/empresas">Ir </a>
+  <p> Si eres cliente: <a href="/clientes">Ir </a>
+
+{% end %}
+

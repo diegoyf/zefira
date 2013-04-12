@@ -1,0 +1,24 @@
+<div id="signupform" >
+<h2>Crea tu usuario</h2>
+<form action="/signup" method="post" id="form">
+{% raw xsrf_form_html() %}
+<label for="username">Nombre de Usuario </label>
+</br>
+<input type="text" name="username" id="username"/>
+</br>
+<label for="password">Contraseña</label>
+</br>
+<input type="text" name="password" id="password" />
+</br>
+<label for="email">Correo Electronico </label>
+</br>
+<input type="text" name="email" id="email"/>
+</br>
+<label for="name"> Nombre Empresa </label></br>
+<input type="text" name="name" id=name" /></br>
+<label for="description"> Descripcion Negocio </label></br>
+<textarea name="description" id="description" rows=4 cols=20></textarea></br>
+
+<input type="hidden" value="companies" name="branch" id="branch"/>
+<input type="submit" value="Crear Usuario" />
+
