@@ -2,10 +2,11 @@ import pymongo
 
 class DataManagement():
     
-    def __init__(self):
+    def __init__(self,database):
         
-        conn = pymongo.Connection("localhost", 27017)
-        self.db = conn.zefira
+        if database == "zefira":
+            conn = pymongo.Connection("localhost", 27017)
+            self.db = conn.zefira
     
     def fetch_benefits_usr(self,interests_ref, user):
         companies_followd = []
@@ -23,8 +24,8 @@ class DataManagement():
                     benefits_dref.append(companies_followd[j]['benefits'][i])
             for i in benefits_dref:
                 benefits.append(self.db.dereference(i))
-
-                reserves = user['reserves']
+            
+            reserves = user['reserves']
             if len(reserves) == 0 :
                 for i in benefits:
                     i['message'] = "Reservar" 
@@ -39,6 +40,7 @@ class DataManagement():
                     else:
                         i['message'] = "Reservar"
             return benefits
+
     def fetch_user(self,username,password,branch):
 
         try:
@@ -46,7 +48,6 @@ class DataManagement():
                 user = self.db.users.find_one({'username':username})
             else:
                 user = self.db.companies.find_one({"username":username})
-                
             if user['password'] == password:
                 return user
             else:
@@ -67,22 +68,17 @@ class DataManagement():
 
     def validate(self,data):
         branch = data['_id'][:4]
-        wrong = ""
+        
         if branch == 'bene':
             print "bene"
             benefits = []
             for i in self.db.benefits.find():
                 benefits.append(i)
             if len(benefits) == 0: return True
-
             for i in benefits:
                 if data['company_name'] == i['company_name'] and data['title'] == i['title']:
-                    wrong = False
-                    return wrong
-            if wrong == False:
-                pass
-            else:
-                return True
+                    return False
+            return True
         elif branch == "comp":
             print "comp"
             companies = []
@@ -90,21 +86,20 @@ class DataManagement():
                 companies.append(i)
                 for i in companies:
                     if data['username'] == i['username']:
-                        return wrong
+                        return False
             return True
         else:
             print "usr"
             users = []
             for i in self.db.users.find():
                 users.append(i)
-
             for i in users:
                 if data['username'] == i['username']:
-                    return wrong
+                    return False
             return True
 
-
     def fetch_benefits_cmp(self,benefits_ref):
+        
         benefits_deref = []
         if not benefits_ref:
             return None
@@ -112,17 +107,54 @@ class DataManagement():
             benefits_deref.append(self.db.dereference(benefits_ref[i]))
         return benefits_deref
     
-    def create_user(new_user, branch):
-        pass
-
-    def fetch_companies_cbox(user_companies):
-        pass
-
-    def follow_fnc_company(company_id):
-        pass
+    def create_user(self, new_user, branch):
+        if branch == "companies" and self.validate(new_user):
+            self.db.companies.save(new_user)
+            return "/cbox"
+        elif branch == "clientes" and self.validate(new_user):
+            self.db.users.save(new_user)
+            return "/box"
+        else:
+            return "/error"
+    def fetch_companies(self, user_companies):
+        companies = []
+        for i in self.db.companies.find():
+            companies.append(i)
+        primary = []
+        for i in user_companies:
+            primary.append(self.db.dereference(i))
+        for i in companies:
+            if i in primary:
+                i['message'] = "Siguiendo"
+            else:
+                i['message'] = "Seguir"
+        return companies
     
-    def reserve_fnc_users(benefit_id):
-        pass
+    def follow_fnc_company(self, company_id, current_user):
+        from bson.dbref import DBRef
+        
+        dbref_obj = DBRef('companies', company_id)
+        if dbref_obj in current_user['interests']:
+            for i in range(len(current_user['interests'])):
+                if current_user['interests'][i] == dbref_obj:
+                    del current_user['interests'][i]
+                    break
+        else:
+            current_user['interests'].append(dbref_obj)
+        self.db.users.save(current_user)
+    
+    def reserve_fnc_users(self, benefit_id, current_user):
+        from bson.dbref import DBRef
+        
+        dbref_obj = DBRef('benefits', benefit_id)
+        if dbref_obj in current_user['reserves']:
+            for i in range(len(current_user['reserves'])):
+                if current_user['reserves'][i] == dbref_obj:
+                    del current_user['reserves'][i]
+                    break
+        else:
+            current_user['reserves'].append(dbref_obj)
+        self.db.users.save(current_user)
     
     
     

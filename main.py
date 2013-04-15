@@ -35,6 +35,7 @@ class Application(tornado.web.Application):
             (r"/empresas", EmpresasHandler),
             (r"/cbox", CBoxHandler),
             (r"/companies", CompaniesHandler),
+            (r"/error", ErrorHandler)
             ]
         settings = dict(
             template_path = os.path.join(os.path.dirname(__file__), "templates"),
@@ -49,7 +50,7 @@ class Application(tornado.web.Application):
             xsrf_cookies = True
         )
         
-        self.dataManager = DataManagement()
+        self.dataManager = DataManagement("zefira")
         tornado.web.Application.__init__(self, handlers, **settings)
 
 
@@ -69,7 +70,12 @@ class BaseHandler(tornado.web.RequestHandler):
             return user
         else:
             self.set_status(404)
-
+class ErrorHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.render(
+            "user_creation_error.html",
+            page_title = "Zefira | Error Page"
+            )
 class MainHandler(tornado.web.RequestHandler):
     
     def get(self):
@@ -83,7 +89,6 @@ class PublishHandler(BaseHandler):
     @tornado.web.authenticated
     
     def get(self):
-        
         self.render(
                 "publish.html",
                 page_title = " Zefira Publish Test",
@@ -91,8 +96,8 @@ class PublishHandler(BaseHandler):
                 message = True,
             )
     def post(self):
-
         import base64, uuid
+
         benefit = {
             "_id":"bene"+base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes),
             "title": self.get_argument("title"), 
@@ -106,8 +111,7 @@ class LoginHandler(BaseHandler):
     def get(self):
         self.render("login.html",
                     page_title ="Zefira | Login",
-                    header_text= "Ingresa a Zefira",
-                    
+                    header_text= "Ingresa a Zefira",  
                     )
     def post(self):
         self.set_secure_cookie("username", self.get_argument("username"))
@@ -146,9 +150,7 @@ class BoxHandler(BaseHandler):
     
     def get(self): 
         interests = self.current_user['interests']    
-        
         benefits = self.data_manager.fetch_benefits_usr(interests, self.current_user)
-        
         self.render(
                "box.html",
                page_title = "Zefira | Inicio",
@@ -159,24 +161,19 @@ class BoxHandler(BaseHandler):
 
     def post(self):
         benefit_id  = self.get_argument("benefit_id")
-        from bson.dbref import DBRef
-        dbref_obj = DBRef('benefits', benefit_id)
-        if dbref_obj in self.current_user['reserves']:
-            for i in range(len(self.current_user['reserves'])):
-                if self.current_user['reserves'][i] == dbref_obj:
-                    del self.current_user['reserves'][i]
-                    break
-        else:
-            self.current_user['reserves'].append(dbref_obj)
-        self.db.users.save(self.current_user)
-        self.redirect("/box")        
+        self.data_manager.reserve_fnc_users(benefit_id,self.current_user)
+        self.redirect("/box")  
+              
 class CBoxHandler(BaseHandler):
     @tornado.web.authenticated
 
     def get(self):
         benefits_published = self.current_user['benefits']
+        if len(benefits_published) == 0 : benefits_deref = None
+        else:
+            benefits_deref = self.data_manager.fetch_benefits_cmp(
+                                            benefits_published)
         
-        benefits_deref = self.data_manager.fetch_benefits_cmp(benefits_published)
         self.render(
             "cbox.html",
             page_title= "Zefira | Companies Box",
@@ -189,9 +186,8 @@ class SignUpHandler(BaseHandler):
     
     def post(self):
         import base64, uuid
-        
-
-        if self.get_argument("branch") == "companies":
+        branch = self.get_argument("branch")
+        if branch  == "companies":
             
             new_user = {
                 '_id':"comp"+base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes),
@@ -204,14 +200,9 @@ class SignUpHandler(BaseHandler):
                     },
                 'benefits' : []
                 }
-            self.db.companies.save(new_user)
-            self.set_secure_cookie("username", self.get_argument("username"))
-            self.set_secure_cookie("password", self.get_argument("password"))
-            self.set_secure_cookie("branch", self.get_argument("branch"))
-            self.redirect("/cbox")
-        
+                  
         else:
-            user = {
+            new_user = {
                 '_id':"user"+base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes),
                 'username' : self.get_argument('username'),
                 'password': self.get_argument('password'),
@@ -219,28 +210,20 @@ class SignUpHandler(BaseHandler):
                 'interests': [],
                 'reserves' : [],
                 }
-            self.db.users.save(user)
-            self.set_secure_cookie("username", self.get_argument("username"))
-            self.set_secure_cookie("password", self.get_argument("password"))
-            self.set_secure_cookie("branch", self.get_argument("branch"))
-            self.redirect("/box")
+        
+        self.set_secure_cookie("username", self.get_argument("username"))
+        self.set_secure_cookie("password", self.get_argument("password"))
+        self.set_secure_cookie("branch", self.get_argument("branch"))
+        self.redirect(self.data_manager.create_user(new_user,branch))
+            
+            
 
 class CompaniesHandler(BaseHandler):
     @tornado.web.authenticated
+    
     def get(self):
-        companies = []
-        for i in self.db.companies.find():
-            companies.append(i)
         user_companies = self.current_user['interests']
-        primary = []
-        for i in user_companies:
-            primary.append(self.db.dereference(i))
-        for i in companies:
-            if i in primary:
-                i['message'] = "Siguiendo"
-            else:
-                i['message'] = "Seguir"
-        
+        companies = self.data_manager.fetch_companies(user_companies)
         self.render(
             "copres.html",
             page_title = "Zefira | Lista Empresas",
@@ -251,16 +234,7 @@ class CompaniesHandler(BaseHandler):
 
     def post(self):
         company_id = self.get_argument("company_id")
-        from bson.dbref import DBRef
-        dbref_obj = DBRef('companies', company_id)
-        if dbref_obj in self.current_user['interests']:
-            for i in range(len(self.current_user['interests'])):
-                if self.current_user['interests'][i] == dbref_obj:
-                    del self.current_user['interests'][i]
-                    break
-        else:
-            self.current_user['interests'].append(dbref_obj)
-        self.db.users.save(self.current_user)
+        self.data_manager.follow_fnc_company(company_id, self.current_user)
         self.redirect("/companies")
         
 

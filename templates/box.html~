@@ -20,7 +20,7 @@
 	<div id="content">
     <h2> Beneficios Disponibles </h2>
 	{% if not benefits %}
-	<p> No estas siguiendo a ninguna empresa, enterate quienes estan y que estan publicando <a href="/companies"> Aqui</a>
+	<p> No estas siguiendo a ninguna empresa o las que estas siguiendo no han publicado nada aun</p><p> Enterate quienes estan y que estan publicando <a href="/companies"> Aqui</a></p>
 	{% end %}
 	{% if benefits %}
 	{% for benefit in benefits %}
