@@ -70,7 +70,7 @@ class DataManagement():
         branch = data['_id'][:4]
         
         if branch == 'bene':
-            print "bene"
+            
             benefits = []
             for i in self.db.benefits.find():
                 benefits.append(i)
@@ -80,7 +80,7 @@ class DataManagement():
                     return False
             return True
         elif branch == "comp":
-            print "comp"
+            
             companies = []
             for i in self.db.companies.find():
                 companies.append(i)
@@ -89,7 +89,7 @@ class DataManagement():
                         return False
             return True
         else:
-            print "usr"
+            
             users = []
             for i in self.db.users.find():
                 users.append(i)
