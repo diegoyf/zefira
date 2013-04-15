@@ -6,7 +6,6 @@ import tornado.ioloop
 import tornado.options
 import os.path
 import datetime
-import pymongo
 import uimodules
 
 from tornado.options import define, options

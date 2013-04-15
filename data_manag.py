@@ -42,12 +42,14 @@ class DataManagement():
             return benefits
 
     def fetch_user(self,username,password,branch):
-
         try:
             if branch == "clientes":
                 user = self.db.users.find_one({'username':username})
-            else:
+            elif branch == "companies":
                 user = self.db.companies.find_one({"username":username})
+            else: 
+                user = self.db.admin.find_one({'username': username})
+            
             if user['password'] == password:
                 return user
             else:
@@ -156,8 +158,12 @@ class DataManagement():
             current_user['reserves'].append(dbref_obj)
         self.db.users.save(current_user)
     
-    
-    
+    def delete_edit_user(self,user_id, branch, delete = True):
+        pass
+    def delete_edit_benefit(self, benefit_id, delete = True):
+        pass   
+    def delete_create_reference(collection, reference , create = True):
+        pass
     
     
     
