@@ -7,39 +7,14 @@ class DataManagement():
         if database == "zefira":
             conn = pymongo.Connection("localhost", 27017)
             self.db = conn.zefira
+            self.benefits_reserved = db.benefits_reserved
+            self.benefits_published = db.benefits_published
     
     def fetch_benefits_usr(self,interests_ref, user):
-        companies_followd = []
-        benefits_dref = []
+        companies = db.companies_followed({'_id':user['_id']})
         benefits = []
-
-        if len(interests_ref) == 0: 
-            return None
-        else:
-
-            for i in interests_ref:
-                companies_followd.append(self.db.dereference(i))
-            for j in range(len(companies_followd)):
-                for i in range(len(companies_followd[j]['benefits'])):
-                    benefits_dref.append(companies_followd[j]['benefits'][i])
-            for i in benefits_dref:
-                benefits.append(self.db.dereference(i))
-            
-            reserves = user['reserves']
-            if len(reserves) == 0 :
-                for i in benefits:
-                    i['message'] = "Reservar" 
-            else:
-                reserves_dref = []
-                for i in range(len(reserves)):
-                    reserves_dref.append(self.db.dereference(reserves[i]))
-
-                for i in benefits:
-                    if i in reserves_dref:
-                        i['message'] = "Reservado"
-                    else:
-                        i['message'] = "Reservar"
-            return benefits
+        for i in companies:
+            benefits.append(self.benefits_published{{'_id', i})
 
     def fetch_user(self,username,password,branch):
         try:
